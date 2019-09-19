@@ -196,6 +196,8 @@ class Sort(object):
     trks = np.zeros((len(self.trackers),5))
     to_del = []
     ret = []
+    dets_trk = []
+    dets_idxs = []
     for t,trk in enumerate(trks):
       pos = self.trackers[t].predict()[0]
       trk[:] = [pos[0], pos[1], pos[2], pos[3], 0]
@@ -210,24 +212,34 @@ class Sort(object):
     for t,trk in enumerate(self.trackers):
       if(t not in unmatched_trks):
         d = matched[np.where(matched[:,1]==t)[0],0]
+        #problem of index ?
+        dets_trk.append([np.where(matched[:,1]==t)[0], t])
         trk.update(dets[d,:][0])
+    dets_trk = np.array(dets_trk)
 
     #create and initialise new trackers for unmatched detections
     for i in unmatched_dets:
         trk = KalmanBoxTracker(dets[i,:]) 
         self.trackers.append(trk)
     i = len(self.trackers)
-    for trk in reversed(self.trackers):
+    for trk_index, trk in reversed(list(enumerate(self.trackers))):
         d = trk.get_state()[0]
         if((trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)):
+          # det_id = matched[np.where(matched[:, 1] == trk_index)[0], 0]
+          # if det_id.shape[0] == 1:
+          # dets_idxs.append(det_id)
+          import ipdb; ipdb.set_trace()
+          det_id = dets_trk[np.where(dets_trk[:, 1] == trk_index)][0]
+          dets_idxs.append(det_id)
           ret.append(np.concatenate((d,[trk.id+1])).reshape(1,-1)) # +1 as MOT benchmark requires positive
         i -= 1
         #remove dead tracklet
         if(trk.time_since_update > self.max_age):
           self.trackers.pop(i)
     if(len(ret)>0):
-      return np.concatenate(ret)
-    return np.empty((0,5))
+      dets_idxs = np.vstack(dets_idxs).reshape(-1)
+      return np.concatenate(ret), dets_idxs
+    return np.empty((0, 5)), np.empty((0))
     
 def parse_args():
     """Parse input arguments."""
