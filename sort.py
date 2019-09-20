@@ -209,36 +209,40 @@ class Sort(object):
     matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(dets,trks)
 
     #update matched trackers with assigned detections
-    for t,trk in enumerate(self.trackers):
+    for t, trk in enumerate(self.trackers):
       if(t not in unmatched_trks):
         d = matched[np.where(matched[:,1]==t)[0],0]
         #problem of index ?
-        dets_trk.append([np.where(matched[:,1]==t)[0], t])
-        trk.update(dets[d,:][0])
+        # dets_trk.append([np.where(matched[:,1] == t)[0], t])
+        dets_trk.append([d, t])
+        trk.update(dets[d, :][0])
+    import ipdb; ipdb.set_trace()
     dets_trk = np.array(dets_trk)
 
     #create and initialise new trackers for unmatched detections
     for i in unmatched_dets:
-        trk = KalmanBoxTracker(dets[i,:]) 
+        trk = KalmanBoxTracker(dets[i,:])
         self.trackers.append(trk)
     i = len(self.trackers)
     for trk_index, trk in reversed(list(enumerate(self.trackers))):
         d = trk.get_state()[0]
         if((trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)):
-          # det_id = matched[np.where(matched[:, 1] == trk_index)[0], 0]
-          # if det_id.shape[0] == 1:
-          # dets_idxs.append(det_id)
-          import ipdb; ipdb.set_trace()
-          det_id = dets_trk[np.where(dets_trk[:, 1] == trk_index)][0]
-          dets_idxs.append(det_id)
-          ret.append(np.concatenate((d,[trk.id+1])).reshape(1,-1)) # +1 as MOT benchmark requires positive
+          if dets_trk.shape[0] > 0:
+            det_id = dets_trk[np.where(dets_trk[:, 1] == trk_index)]
+            if det_id.shape[0] > 0:
+              det_id = det_id[0][0]
+              dets_idxs.append(det_id)
+              ret.append(np.concatenate((d,[trk.id+1])).reshape(1,-1)) # +1 as MOT benchmark requires positive
         i -= 1
         #remove dead tracklet
         if(trk.time_since_update > self.max_age):
           self.trackers.pop(i)
     if(len(ret)>0):
-      dets_idxs = np.vstack(dets_idxs).reshape(-1)
-      return np.concatenate(ret), dets_idxs
+      if dets_idxs:
+        dets_idxs = np.vstack(dets_idxs).reshape(-1)
+        return np.concatenate(ret), dets_idxs
+      else:
+        return np.concatenate(ret), np.empty((0))
     return np.empty((0, 5)), np.empty((0))
     
 def parse_args():
